@@ -63,10 +63,10 @@ small, .small { font-size: .85rem; }
 .sidebar-foot { margin-top: auto; padding-top: 14px; border-top: 1px solid var(--line); }
 .scrim { display: none; }
 
-.main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
-.topbar { display: flex; align-items: center; gap: 12px; padding: 8px 4px 8px 8px; position: sticky; top: 0; z-index: 5; }
-.topbar-title { color: var(--muted); font-size: .88rem; font-weight: 500; }
+.main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; padding-top: 54px; }
+.topbar { display: flex; align-items: center; gap: 12px; min-height: 54px; padding: 8px 0; position: fixed; top: 16px; left: 288px; right: 16px; z-index: 15; pointer-events: none; }
 .topbar-user { margin-left: auto; display: flex; align-items: center; gap: 10px; background: rgba(255, 255, 255, .85); border: 1px solid #fff; border-radius: 999px; padding: 4px 6px 4px 6px; box-shadow: var(--shadow); }
+.topbar-user, .topbar .menu-btn { pointer-events: auto; }
 .icon-btn { width: 38px; height: 38px; border-radius: 50%; border: 1px solid var(--line); background: #fff; color: var(--g-800); display: inline-grid; place-items: center; cursor: pointer; position: relative; text-decoration: none; }
 .icon-btn:hover { background: var(--g-50); }
 .icon-btn.menu-btn { display: none; border-radius: 12px; }
@@ -287,14 +287,13 @@ body.print-body { background: #fff; background-image: none; }
 /* ---------- Responsive ---------- */
 @media (max-width: 960px) {
   .shell { padding: 0; gap: 0; }
-  .main { padding: 10px 14px 0; }
+  .main { padding: 54px 14px 0; }
   .split, .split-even { grid-template-columns: 1fr; }
   .icon-btn.menu-btn { display: inline-grid; }
   .sidebar { position: fixed; left: 0; top: 0; height: 100vh; z-index: 30; border-radius: 0 22px 22px 0; transform: translateX(-100%); transition: transform .2s ease; }
   .nav-open .sidebar { transform: none; }
   .nav-open .scrim { display: block; position: fixed; inset: 0; background: rgba(20, 40, 28, .45); z-index: 20; }
-  .topbar { padding: 4px 0; }
-  .topbar-title { display: none; }
+  .topbar { top: 0; left: 14px; right: 14px; padding: 4px 0; }
   .content { padding: 10px 0 24px; }
 }
 @media (max-width: 600px) {

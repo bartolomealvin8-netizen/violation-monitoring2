@@ -82,6 +82,7 @@ function layout_start(string $title, string $subtitle = '', string $actions = ''
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title><?= e($title) ?> · <?= e(APP_NAME) ?></title>
+<link rel="icon" type="image/png" href="olfu-logo-circle.png?v=2">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap">
@@ -92,7 +93,7 @@ function layout_start(string $title, string $subtitle = '', string $actions = ''
 <div class="shell">
   <aside class="sidebar" id="sidebar" aria-label="Main navigation">
     <div class="brand">
-      <span class="brand-mark"><img src="olfu%20logo.png" alt="OLFU logo"></span>
+      <span class="brand-mark"><img src="olfu-logo-circle.png" alt="OLFU logo"></span>
       <span><strong><?= e(APP_NAME) ?></strong><small>OLFU Antipolo</small></span>
     </div>
     <?php foreach (nav_for($user['role']) as $group => $items): ?>
@@ -115,7 +116,6 @@ function layout_start(string $title, string $subtitle = '', string $actions = ''
   <div class="main">
     <header class="topbar">
       <button type="button" class="icon-btn menu-btn" id="menu-btn" aria-label="Open menu" aria-controls="sidebar"><?= icon('menu') ?></button>
-      <span class="topbar-title"><?= e(CAMPUS_NAME) ?></span>
       <div class="topbar-user">
         <?php if ($user['role'] !== 'admin'): ?>
           <a class="icon-btn bell" href="<?= e(url('notifications')) ?>" aria-label="Notifications<?= $unread ? ', ' . $unread . ' unread' : '' ?>">
@@ -177,6 +177,7 @@ function auth_start(string $title, string $heading, string $sub = ''): void
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title><?= e($title) ?> · <?= e(APP_NAME) ?></title>
+<link rel="icon" type="image/png" href="olfu-logo-circle.png?v=2">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap">
@@ -186,7 +187,7 @@ function auth_start(string $title, string $heading, string $sub = ''): void
 <?= sprite() ?>
 <main class="auth-card">
   <div class="auth-brand">
-    <span class="brand-mark"><img src="olfu%20logo.png" alt="OLFU logo"></span>
+    <span class="brand-mark"><img src="olfu-logo-circle.png" alt="OLFU logo"></span>
     <div><strong><?= e(APP_NAME) ?></strong><small><?= e(CAMPUS_NAME) ?></small></div>
   </div>
   <h1><?= e($heading) ?></h1>

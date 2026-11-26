@@ -2,14 +2,21 @@
 declare(strict_types=1);
 
 /**
- * Core helpers: constants, storage (JSON files), auth, CSRF, flash, sorting, paging.
- * Storage is isolated in db_read() / db_mutate() so a real database can replace it later.
+ * Core helpers: SQLite storage, auth, CSRF, flash, sorting, and paging.
  */
 
 define('ROOT', __DIR__);
 define('DATA_DIR', ROOT . '/data');
 define('UPLOAD_DIR', ROOT . '/uploads');
-// Data files are .php files that start with this guard, so a browser can never read them.
+// Keep the database outside the public project directory unless explicitly configured.
+$databasePath = getenv('APP_DB_PATH');
+$privateDatabaseStorage = $databasePath === false || $databasePath === '';
+if ($privateDatabaseStorage) {
+    $databasePath = dirname(ROOT) . '/' . basename(ROOT) . '-storage/app.sqlite';
+}
+define('DB_PATH', $databasePath);
+define('DB_PRIVATE_STORAGE', $privateDatabaseStorage);
+// Legacy data files are .php files that start with this guard.
 define('DATA_GUARD', "<?php http_response_code(404); exit; ?>\n");
 
 const APP_NAME = 'Violation Monitoring';
@@ -107,37 +114,123 @@ function take_flashes(): array
     return $f;
 }
 
-/* ---------- Storage ---------- */
+/* ---------- SQLite storage ---------- */
+
+function app_db(): PDO
+{
+    static $db = null;
+    if ($db instanceof PDO) {
+        return $db;
+    }
+
+    $directory = dirname(DB_PATH);
+    if (!is_dir($directory) && !mkdir($directory, 0775, true) && !is_dir($directory)) {
+        throw new RuntimeException('Unable to create the SQLite database directory.');
+    }
+    if (DB_PRIVATE_STORAGE && !chmod($directory, 0700)) {
+        throw new RuntimeException('Unable to restrict access to the SQLite database directory.');
+    }
+
+    $connection = new PDO('sqlite:' . DB_PATH);
+    $connection->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+    $connection->exec('PRAGMA busy_timeout = 5000');
+    $connection->exec('PRAGMA journal_mode = WAL');
+    $connection->exec('CREATE TABLE IF NOT EXISTS app_data (
+        name TEXT PRIMARY KEY,
+        payload TEXT NOT NULL,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )');
+    $connection->exec('CREATE TABLE IF NOT EXISTS schema_migrations (
+        version INTEGER PRIMARY KEY,
+        applied_at TEXT NOT NULL
+    )');
+
+    $connection->exec('BEGIN IMMEDIATE');
+    try {
+        $migration = $connection->query('SELECT 1 FROM schema_migrations WHERE version = 1')->fetchColumn();
+        if ($migration === false) {
+            $insert = $connection->prepare('INSERT OR IGNORE INTO app_data (name, payload) VALUES (:name, :payload)');
+            foreach (['users', 'settings', 'cases', 'notifications', 'incident_reports'] as $name) {
+                $legacyPath = DATA_DIR . '/' . $name . '.php';
+                if (!is_file($legacyPath)) {
+                    continue;
+                }
+                $raw = file_get_contents($legacyPath);
+                if ($raw === false) {
+                    throw new RuntimeException('Unable to read legacy data collection: ' . $name);
+                }
+                if (str_starts_with($raw, DATA_GUARD)) {
+                    $raw = substr($raw, strlen(DATA_GUARD));
+                }
+                $data = json_decode($raw, true, 512, JSON_THROW_ON_ERROR);
+                if (!is_array($data)) {
+                    throw new RuntimeException('Legacy data collection is not an array: ' . $name);
+                }
+                $insert->execute([
+                    ':name' => $name,
+                    ':payload' => json_encode($data, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+                ]);
+            }
+            $connection->prepare('INSERT INTO schema_migrations (version, applied_at) VALUES (1, :applied_at)')
+                ->execute([':applied_at' => now()]);
+        }
+        $connection->exec('COMMIT');
+    } catch (Throwable $error) {
+        if ($connection->inTransaction()) {
+            $connection->rollBack();
+        }
+        throw $error;
+    }
+    if (!chmod(DB_PATH, 0600)) {
+        throw new RuntimeException('Unable to restrict access to the SQLite database file.');
+    }
+
+    return $db = $connection;
+}
 
 function db_read(string $name): array
 {
-    $path = DATA_DIR . "/$name.php";
-    if (!is_file($path)) {
+    $query = app_db()->prepare('SELECT payload FROM app_data WHERE name = :name');
+    $query->execute([':name' => $name]);
+    $payload = $query->fetchColumn();
+    if ($payload === false) {
         return [];
     }
-    $raw = (string)file_get_contents($path);
-    if (str_starts_with($raw, DATA_GUARD)) {
-        $raw = substr($raw, strlen(DATA_GUARD));
+    $data = json_decode($payload, true, 512, JSON_THROW_ON_ERROR);
+    if (!is_array($data)) {
+        throw new RuntimeException('Stored data collection is not an array: ' . $name);
     }
-    $data = json_decode($raw, true);
-    return is_array($data) ? $data : [];
+    return $data;
 }
 
-/** Read, change and save one data file under an exclusive lock. $fn receives the data by reference. */
+/** Read, change, and save one collection atomically. $fn receives its data by reference. */
 function db_mutate(string $name, callable $fn)
 {
-    $lock = fopen(DATA_DIR . '/.lock', 'c');
-    flock($lock, LOCK_EX);
+    $db = app_db();
+    $db->exec('BEGIN IMMEDIATE');
     try {
-        $data = db_read($name);
+        $query = $db->prepare('SELECT payload FROM app_data WHERE name = :name');
+        $query->execute([':name' => $name]);
+        $payload = $query->fetchColumn();
+        $data = $payload === false ? [] : json_decode($payload, true, 512, JSON_THROW_ON_ERROR);
+        if (!is_array($data)) {
+            throw new RuntimeException('Stored data collection is not an array: ' . $name);
+        }
         $result = $fn($data);
-        $path = DATA_DIR . "/$name.php";
-        $json = DATA_GUARD . json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-        file_put_contents($path . '.tmp', $json);
-        rename($path . '.tmp', $path);
-    } finally {
-        flock($lock, LOCK_UN);
-        fclose($lock);
+        $save = $db->prepare('INSERT INTO app_data (name, payload, updated_at)
+            VALUES (:name, :payload, :updated_at)
+            ON CONFLICT(name) DO UPDATE SET payload = excluded.payload, updated_at = excluded.updated_at');
+        $save->execute([
+            ':name' => $name,
+            ':payload' => json_encode($data, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+            ':updated_at' => now(),
+        ]);
+        $db->exec('COMMIT');
+    } catch (Throwable $error) {
+        if ($db->inTransaction()) {
+            $db->rollBack();
+        }
+        throw $error;
     }
     return $result;
 }

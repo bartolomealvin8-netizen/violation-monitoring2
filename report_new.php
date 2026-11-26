@@ -4,7 +4,7 @@ declare(strict_types=1);
 $settings = settings();
 $isGuard = $user['role'] === 'security'; // guards may not know who the person is, so those fields are optional
 $errors = [];
-$v = ['student_name' => '', 'student_no' => '', 'department' => '', 'type' => '', 'date' => '', 'location' => '', 'description' => ''];
+$v = ['student_name' => '', 'student_no' => '', 'department' => '', 'type' => '', 'other_type' => '', 'date' => '', 'location' => '', 'description' => ''];
 
 if (is_post()) {
     csrf_verify();
@@ -23,6 +23,13 @@ if (is_post()) {
     }
     if (!in_array($v['type'], $settings['violation_types'], true)) {
         $errors['type'] = 'Choose the type of violation.';
+    }
+    if ($v['type'] === 'Other') {
+        if (mb_strlen(trim($v['other_type'])) < 3) {
+            $errors['other_type'] = 'Describe the other incident type in at least 3 characters.';
+        } elseif (mb_strlen($v['other_type']) > 100) {
+            $errors['other_type'] = 'Keep the other incident type under 100 characters.';
+        }
     }
     $d = DateTime::createFromFormat('Y-m-d', $v['date']);
     if (!$d || $d->format('Y-m-d') !== $v['date']) {
@@ -47,7 +54,7 @@ if (is_post()) {
             $case = [
                 'id' => $id, 'ref' => sprintf('VR-%s-%04d', date('Y'), $id), 'reporter_id' => $user['id'],
                 'reporter_name' => $user['name'], 'reporter_role' => $user['role'], 'student_name' => $v['student_name'], 'student_no' => strtoupper($v['student_no']),
-                'department' => $v['department'], 'type' => $v['type'], 'date' => $v['date'], 'location' => $v['location'],
+                'department' => $v['department'], 'type' => $v['type'], 'other_type' => $v['type'] === 'Other' ? trim($v['other_type']) : '', 'date' => $v['date'], 'location' => $v['location'],
                 'description' => $v['description'], 'attachments' => $attachments, 'status' => 'pending',
                 'findings' => '', 'recommendation' => '', 'resolved_at' => null, 'ack' => [],
                 'history' => [['at' => now(), 'by' => $user['name'], 'text' => 'Report submitted.', 'public' => true]],
@@ -57,8 +64,12 @@ if (is_post()) {
             return $case;
         });
         notify([$user['id']], 'We received your report ' . $case['ref'] . '. Guidance will review it soon.', url('case', ['id' => $case['id']]));
+        $submittedType = $case['type'] === 'Other' && ($case['other_type'] ?? '') !== ''
+            ? 'Other: ' . $case['other_type']
+            : $case['type'];
         notify(array_column(active_users_by_role('guidance'), 'id'),
-            'New ' . ($isGuard ? 'incident report ' : 'report ') . $case['ref'] . ' (' . $case['type'] . ')' . ($isGuard ? ' from a security guard' : '') . ' is waiting for review.', url('case', ['id' => $case['id']]));
+            'New ' . ($isGuard ? 'incident report ' : 'report ') . $case['ref'] . ' (' . $submittedType . ')' . ($isGuard ? ' from a security guard' : '') . ' is waiting for review.',
+            url('case', ['id' => $case['id']]));
         flash('success', 'Report submitted. Your reference number is ' . $case['ref'] . '.');
         redirect('case', ['id' => $case['id']]);
     }
@@ -121,6 +132,11 @@ if ($errors) {
       <input type="text" id="location" name="location" value="<?= e($v['location']) ?>" placeholder="e.g. Room 301, canteen" required>
       <?= field_error($errors, 'location') ?>
     </div>
+  </div>
+  <div class="field" id="other-type-field" <?= $v['type'] === 'Other' ? '' : 'hidden' ?>>
+    <label for="other_type">Other incident type</label>
+    <input type="text" id="other_type" name="other_type" value="<?= e($v['other_type']) ?>" maxlength="100" placeholder="Describe the incident type" <?= $v['type'] === 'Other' ? 'required' : '' ?>>
+    <?= field_error($errors, 'other_type') ?>
   </div>
   <div class="field">
     <label for="description">What happened?</label>

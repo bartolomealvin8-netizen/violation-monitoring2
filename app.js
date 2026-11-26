@@ -71,6 +71,21 @@
   }
   if (role && dependent.length) { role.addEventListener('change', syncRole); syncRole(); }
 
+  /* Show a custom value field when "Other" is selected */
+  var type = document.getElementById('type');
+  var otherTypeField = document.getElementById('other-type-field');
+  var otherType = document.getElementById('other_type');
+  function syncOtherType() {
+    if (!type || !otherTypeField || !otherType) return;
+    var show = type.value === 'Other';
+    otherTypeField.hidden = !show;
+    otherType.required = show;
+  }
+  if (type && otherTypeField) {
+    type.addEventListener('change', syncOtherType);
+    syncOtherType();
+  }
+
   /* Print view */
   if (body.dataset.autoprint) window.addEventListener('load', function () { setTimeout(window.print, 300); });
 })();

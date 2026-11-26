@@ -112,7 +112,7 @@ if (is_reporter_role($role)) {
     $history = array_values(array_filter($history, fn($h) => $h['public'] ?? false));
 }
 
-layout_start($case['ref'], 'Violation report: ' . $case['type'], '<a class="btn btn-outline" href="' . e(url('cases')) . '">Back to list</a>');
+layout_start($case['ref'], 'Violation report: ' . $case['type'] . (($case['type'] === 'Other' && ($case['other_type'] ?? '') !== '') ? ': ' . $case['other_type'] : ''), '<a class="btn btn-outline" href="' . e(url('cases')) . '">Back to list</a>');
 
 if ($errors) {
     echo '<div class="alert alert-error" role="alert">' . icon('alert') . '<span>Please fix the highlighted fields and try again.</span></div>';
@@ -140,7 +140,7 @@ $steps = ['Submitted', 'Under review', 'Resolved'];
       <dl class="details">
         <div><dt><?= ($case['reporter_role'] ?? 'student') === 'security' ? 'Person involved' : 'Student involved' ?></dt><dd><?= ($case['student_name'] ?? '') !== '' || ($case['student_no'] ?? '') !== '' ? e(student_label($case)) : '<span class="muted">Not identified yet</span>' ?></dd></div>
         <div><dt>Department</dt><dd><?= $case['department'] !== '' ? e($case['department']) : '<span class="muted">Not identified yet</span>' ?></dd></div>
-        <div><dt>Violation type</dt><dd><?= e($case['type']) ?></dd></div>
+        <div><dt>Violation type</dt><dd><?= e($case['type']) ?><?= $case['type'] === 'Other' && ($case['other_type'] ?? '') !== '' ? ': ' . e($case['other_type']) : '' ?></dd></div>
         <div><dt>Date of incident</dt><dd><?= e(fmt_date($case['date'])) ?></dd></div>
         <div><dt>Location</dt><dd><?= e($case['location']) ?></dd></div>
         <div><dt>Submitted</dt><dd><?= e(fmt_datetime($case['created_at'])) ?></dd></div>
